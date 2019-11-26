@@ -6,4 +6,4 @@ ENV NODE_ENV development
 ADD . /home/node/app
 RUN npm install .
 
-CMD npm start
+CMD npm run-script server
