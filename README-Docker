@@ -3,6 +3,7 @@
 
 Running:
  - docker run --name mrz-detection --rm -p3000:3000 mrz-detection
+ - docker run --name mrz-detection -d -p3000:3000 --restart=unless-stopped mrz-detection
 
 Stopping:
  - docker stop mrz-detection
