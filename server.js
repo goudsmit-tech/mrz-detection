@@ -4,6 +4,7 @@ const Image = require('image-js').Image;
 const express = require('express');
 const bodyparser = require('body-parser');
 const multer = require('multer');
+const parse = require('mrz').parse;
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -57,7 +58,9 @@ router.post('/upload', upload.single('image'), async function (req, res) {
     console.log(result);
     // throw a nice error if nothing read?
     console.log(result.mrz);
-    return res.status(200).json({ mrz: result.mrz });
+    var parsed = parse(result.mrz);
+    console.log(parsed);
+    return res.status(200).json({ mrz: result.mrz, parsed: parsed });
 });
 
 // 3 lines of 30 chars
