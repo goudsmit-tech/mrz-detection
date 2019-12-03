@@ -1,5 +1,7 @@
 
-- docker build --no-cache . --tag mrz-detection
+Building:
+ - docker build --no-cache . --tag mrz-detection
+ - docker build --no-cache . --tag mrz-detection
 
 Running:
  - docker run --name mrz-detection --rm -p3000:3000 mrz-detection
