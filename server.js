@@ -5,12 +5,46 @@ const express = require('express');
 const bodyparser = require('body-parser');
 const multer = require('multer');
 const parse = require('mrz').parse;
+const pdfjsLib = require('pdfjs-dist');
 
 const app = express();
 const port = process.env.PORT || 3000;
 const router = express.Router();
 
 const upload = multer({ limits: { fileSize: 32*1024*1024 } });
+
+var Canvas = require('canvas');
+var assert = require('assert');
+function NodeCanvasFactory() {}
+NodeCanvasFactory.prototype = {
+  create: function NodeCanvasFactory_create(width, height) {
+    assert(width > 0 && height > 0, 'Invalid canvas size');
+    var canvas = Canvas.createCanvas(width, height);
+    var context = canvas.getContext('2d');
+    return {
+      canvas: canvas,
+      context: context,
+    };
+  },
+
+  reset: function NodeCanvasFactory_reset(canvasAndContext, width, height) {
+    assert(canvasAndContext.canvas, 'Canvas is not specified');
+    assert(width > 0 && height > 0, 'Invalid canvas size');
+    canvasAndContext.canvas.width = width;
+    canvasAndContext.canvas.height = height;
+  },
+
+  destroy: function NodeCanvasFactory_destroy(canvasAndContext) {
+    assert(canvasAndContext.canvas, 'Canvas is not specified');
+
+    // Zeroing the width and height cause Firefox to release graphics
+    // resources immediately, which can greatly reduce memory consumption.
+    canvasAndContext.canvas.width = 0;
+    canvasAndContext.canvas.height = 0;
+    canvasAndContext.canvas = null;
+    canvasAndContext.context = null;
+  },
+};
 
 app.use(bodyparser.json());
 app.use(bodyparser.urlencoded({extended: true}));
@@ -37,8 +71,33 @@ router.get('/test', async function (req,res) {
 });
 
 router.post('/upload', upload.single('image'), async function (req, res) {
+    var sourceImage;
     console.log('hit the /upload function');
-    const sourceImage = await Image.load(req.file.buffer);
+    console.log(req.file);
+    if(req.file.mimetype == 'application/pdf') {
+        console.log('mime type suggests pdf');
+        var pdfDocument = await pdfjsLib.getDocument(req.file.buffer).promise;    
+        console.log('created pdf object from file buffer');
+        var page = await pdfDocument.getPage(1);
+        console.log('got page 1');
+        var viewport = page.getViewport({ scale: 1.0});
+        console.log('got viewport');
+        var canvasFactory = new NodeCanvasFactory();
+        var canvasAndContext = canvasFactory.create(viewport.width,viewport.height);
+        console.log('setup canvas');
+        var renderContext = {
+            canvasContext: canvasAndContext.context,
+            viewport: viewport,
+            canvasFactory: canvasFactory,
+        };
+        await page.render(renderContext).promise;
+        console.log('rendered page to image');
+        const imageBuffer = canvasAndContext.canvas.toBuffer();
+        console.log('converted image to buffer');
+        sourceImage = await Image.load(imageBuffer);
+    } else {
+        sourceImage = await Image.load(req.file.buffer);
+    }
     console.log('loaded the image');
     const processedImage = {};
     try {
@@ -60,6 +119,7 @@ router.post('/upload', upload.single('image'), async function (req, res) {
     console.log(result.mrz);
     var parsed = parse(result.mrz);
     console.log(parsed);
+    // parsed.fields is the dictionary that is actually the content
     return res.status(200).json({ mrz: result.mrz, parsed: parsed });
 });
 
