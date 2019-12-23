@@ -103,7 +103,8 @@ router.post('/upload', upload.single('image'), async function (req, res) {
         const mimetype = req.file.mimetype
         if(!mimetype) {
             console.log('Upload without mimetype detected');
-            return res.status(500).send('Form upload element did not have mimetype');
+            res.status(500).send('Form upload element did not have mimetype');
+	    return;
         }
         if(mimetype == 'application/pdf') {
             console.log('mime type suggests pdf; converting buffer into image');
@@ -115,8 +116,8 @@ router.post('/upload', upload.single('image'), async function (req, res) {
     } else {
         // should check the content-type header and load the image accordingly
         console.log('no file form element named "upload" detected; may want to read body directly');
-        console.log(req);
-        return res.status(500).send('No form element named "upload" detected');
+        res.status(500).send('No form element named "upload" detected');
+	return;
     }
     console.log('loaded the image');
     const processedImage = {};
@@ -124,7 +125,8 @@ router.post('/upload', upload.single('image'), async function (req, res) {
         await getMrz(sourceImage, { out:processedImage, debug:true });
     } catch(e) {
         console.error(e);
-        // throw a nice error?
+	res.status(500).send(e);
+	return;
     }
     console.log('processed the image');
     // throw a nice error if no crop item?
@@ -140,7 +142,8 @@ router.post('/upload', upload.single('image'), async function (req, res) {
     var parsed = parse(result.mrz);
     console.log(parsed);
     // parsed.fields is the dictionary that is actually the content
-    return res.status(200).json({ mrz: result.mrz, parsed: parsed });
+    res.status(200).json({ mrz: result.mrz, parsed: parsed });
+    return;
 });
 
 app.listen(port, function () {
