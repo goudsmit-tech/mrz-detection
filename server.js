@@ -70,33 +70,53 @@ router.get('/test', async function (req,res) {
    );
 });
 
+// Reads the PDF in buffer and returns a rendered image
+async function readPDF(buffer) {
+    var pdfDocument = await pdfjsLib.getDocument(req.file.buffer).promise;    
+    console.log('created pdf object from file buffer');
+    var page = await pdfDocument.getPage(1);
+    console.log('got page 1');
+    var viewport = page.getViewport({ scale: 1.0});
+    console.log('got viewport');
+    var canvasFactory = new NodeCanvasFactory();
+    var canvasAndContext = canvasFactory.create(viewport.width,viewport.height);
+    console.log('setup canvas');
+    var renderContext = {
+        canvasContext: canvasAndContext.context,
+        viewport: viewport,
+        canvasFactory: canvasFactory,
+    };
+    await page.render(renderContext).promise;
+    console.log('rendered page to image');
+    const imageBuffer = canvasAndContext.canvas.toBuffer();
+    console.log('converted image to buffer');
+    const image = await Image.load(imageBuffer);
+    return image;
+}
+
 router.post('/upload', upload.single('image'), async function (req, res) {
     var sourceImage;
     console.log('hit the /upload function');
-    console.log(req.file);
-    if(req.file.mimetype == 'application/pdf') {
-        console.log('mime type suggests pdf');
-        var pdfDocument = await pdfjsLib.getDocument(req.file.buffer).promise;    
-        console.log('created pdf object from file buffer');
-        var page = await pdfDocument.getPage(1);
-        console.log('got page 1');
-        var viewport = page.getViewport({ scale: 1.0});
-        console.log('got viewport');
-        var canvasFactory = new NodeCanvasFactory();
-        var canvasAndContext = canvasFactory.create(viewport.width,viewport.height);
-        console.log('setup canvas');
-        var renderContext = {
-            canvasContext: canvasAndContext.context,
-            viewport: viewport,
-            canvasFactory: canvasFactory,
-        };
-        await page.render(renderContext).promise;
-        console.log('rendered page to image');
-        const imageBuffer = canvasAndContext.canvas.toBuffer();
-        console.log('converted image to buffer');
-        sourceImage = await Image.load(imageBuffer);
+    if(req.file) {
+        console.log('form upload detected with file element name "image"');
+        console.log(req.file);
+        const mimetype = req.file.mimetype
+        if(!mimetype) {
+            console.log('Upload without mimetype detected');
+            return res.status(500).send('Form upload element did not have mimetype');
+        }
+        if(mimetype == 'application/pdf') {
+            console.log('mime type suggests pdf; converting buffer into image');
+            sourceImage = readPDF(req.file.buffer);
+        } else {
+            console.log('read image directly from buffer');
+            sourceImage = await Image.load(req.file.buffer);
+        }
     } else {
-        sourceImage = await Image.load(req.file.buffer);
+        // should check the content-type header and load the image accordingly
+        console.log('no file form element named "upload" detected; may want to read body directly');
+        console.log(req);
+        return res.status(500).send('No form element named "upload" detected');
     }
     console.log('loaded the image');
     const processedImage = {};
@@ -122,21 +142,6 @@ router.post('/upload', upload.single('image'), async function (req, res) {
     // parsed.fields is the dictionary that is actually the content
     return res.status(200).json({ mrz: result.mrz, parsed: parsed });
 });
-
-// 3 lines of 30 chars
-// 0,0,1: I = ID
-// 0,2,3: document issueing country?
-// 0,5,9: document id number
-// 0,14,9: BSN
-// 1,0,6: DOB (2/2/2 rev)
-// 1,6,1: gender
-// 1,7,6: expire (2/2/2 rev)
-// 1,13,1: ??? single digit
-// 1,14,3: nationality? country of birth?
-// 2,0: lastname<<first-names: remove trailing <, split on <<
-//"I<NLDIVC1FLH162173016005<<<<<5",
-//"7608162M2502209NLD<<<<<<<<<<<2",
-//"GOUDSMIT<<GILION<RAMON<<<<<<<<"
 
 app.listen(port, function () {
   console.log('Server is running on PORT',port);
