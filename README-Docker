@@ -10,4 +10,10 @@ Running:
 Stopping:
  - docker stop mrz-detection
 
+Restarting:
+ - docker stop mrz-detection ; docker rm mrz-detection ; docker run --name mrz-detection -d -p3000:3000 --restart=unless-stopped mrz-detection
+
+
+
+
 
